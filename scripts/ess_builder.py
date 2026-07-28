@@ -1,93 +1,161 @@
-#TARGET OF MIRAI IS ECONOMIC STRESS SCORE
+"""
+Builds the Economic Stress Score (ESS) and future ESS target.
 
+Pipeline:
+feature_table.csv
+        ↓
+Compute rolling z-scores
+        ↓
+Category scores
+        ↓
+Weighted ESS
+        ↓
+Scale to 0-100
+        ↓
+ESS_target = ESS shifted 3 months
+"""
 
 import logging
 from pathlib import Path
 
-import joblib
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-MODELS_DIR = PROJECT_ROOT / "models"
-MODELS_DIR.mkdir(exist_ok=True)
 
-TARGET_COLUMN = "ESS_target"
-SPLIT_DATE = "2019-01-01"  # everything before = train, everything on/after = test
+FORECAST_HORIZON_MONTHS = 3
+ROLLING_WINDOW = 60
 
+CATEGORY_WEIGHTS = {
+    "macro": 0.30,
+    "market": 0.25,
+    "commodities": 0.15,
+    "behavioral": 0.20,
+    "external": 0.10,
+}
 
-def load_feature_table() -> pd.DataFrame:
-    df = pd.read_csv(PROCESSED_DIR / "feature_table.csv")
-    df["Date"] = pd.to_datetime(df["Date"])
-    return df
+INDICATOR_CATEGORIES = {
+    "macro": [
+        {"column": "cpi_CPI_pct_change", "invert": False},
+        {"column": "interest_rate_FederalFundsRate", "invert": False},
+        {"column": "unemployment_Unemployment", "invert": False},
+        {"column": "industrial_production_IndustrialProduction_pct_change", "invert": True},
+        {"column": "india_gdp_IndiaGDP_pct_change", "invert": True},
+    ],
 
+    "market": [
+        {"column": "sp500_Close_vol3", "invert": False},
+        {"column": "sp500_Close_momentum", "invert": True},
+        {"column": "nasdaq_Close_momentum", "invert": True},
+        {"column": "sensex_Close_momentum", "invert": True},
+        {"column": "nifty50_Close_momentum", "invert": True},
+    ],
 
-def chronological_split(df: pd.DataFrame, split_date: str):
-    train = df[df["Date"] < split_date]
-    test = df[df["Date"] >= split_date]
-    log.info("Train: %d rows (%s -> %s)", len(train), train["Date"].min(), train["Date"].max())
-    log.info("Test: %d rows (%s -> %s)", len(test), test["Date"].min(), test["Date"].max())
-    return train, test
+    "commodities": [
+        {"column": "gold_Close_momentum", "invert": False},
+        {"column": "oil_Close_momentum", "invert": False},
+    ],
 
+    "behavioral": [
+        {"column": "consumer_sentiment_ConsumerSentiment", "invert": True},
+    ],
 
-def split_xy(df: pd.DataFrame, target_column: str):
-    X = df.drop(columns=["Date", target_column])
-    y = df[target_column]
-    return X, y
-
-
-def train_model(X_train: pd.DataFrame, y_train: pd.Series) -> RandomForestRegressor:
-    model = RandomForestRegressor(
-        n_estimators=300,
-        max_depth=6,
-        random_state=42,
-    )
-    model.fit(X_train, y_train)
-    return model
-
-
-def evaluate(model: RandomForestRegressor, X_test: pd.DataFrame, y_test: pd.Series) -> None:
-    y_pred = model.predict(X_test)
-
-    mae = mean_absolute_error(y_test, y_pred)
-    rmse = mean_squared_error(y_test, y_pred, squared=False)
-    r2 = r2_score(y_test, y_pred)
-
-    log.info("MAE: %.2f points", mae)
-    log.info("RMSE: %.2f points", rmse)
-    log.info("R2: %.3f", r2)
+    "external": [
+        {"column": "usd_inr_USDINR", "invert": False},
+    ],
+}
 
 
-def feature_importance(model: RandomForestRegressor, X_train: pd.DataFrame, top_n: int = 15) -> pd.Series:
-    importances = pd.Series(model.feature_importances_, index=X_train.columns)
-    importances = importances.sort_values(ascending=False)
-    log.info("Top %d features:\n%s", top_n, importances.head(top_n))
-    return importances
+def rolling_zscore(series, window):
+    mean = series.rolling(window=window, min_periods=12).mean()
+    std = series.rolling(window=window, min_periods=12).std()
+
+    z = (series - mean) / std
+
+    return z.fillna(0)
+
+
+def compute_category_score(df, indicators):
+    scores = []
+
+    for indicator in indicators:
+        column = indicator["column"]
+
+        if column not in df.columns:
+            log.warning("Missing column: %s", column)
+            continue
+
+        z = rolling_zscore(df[column], ROLLING_WINDOW)
+
+        if indicator["invert"]:
+            z = -z
+
+        scores.append(z)
+
+    if len(scores) == 0:
+        return pd.Series(0, index=df.index)
+
+    return pd.concat(scores, axis=1).mean(axis=1)
+
+
+def build_ess(df):
+    category_scores = {}
+
+    for category, indicators in INDICATOR_CATEGORIES.items():
+        category_scores[category] = compute_category_score(df, indicators)
+
+    raw_score = pd.Series(0, index=df.index)
+
+    for category, weight in CATEGORY_WEIGHTS.items():
+        raw_score += category_scores[category] * weight
+
+    # Convert approximately -3...+3 to 0...100
+    ess = ((raw_score + 3) / 6) * 100
+
+    ess = ess.clip(0, 100)
+
+    return ess
 
 
 def main():
-    df = load_feature_table()
-    train, test = chronological_split(df, SPLIT_DATE)
 
-    X_train, y_train = split_xy(train, TARGET_COLUMN)
-    X_test, y_test = split_xy(test, TARGET_COLUMN)
+    file_path = PROCESSED_DIR / "feature_table.csv"
 
-    model = train_model(X_train, y_train)
-    evaluate(model, X_test, y_test)
-    importances = feature_importance(model, X_train)
+    df = pd.read_csv(file_path)
 
-    model_path = MODELS_DIR / "ess_model.pkl"
-    joblib.dump(model, model_path)
-    log.info("Saved model -> %s", model_path)
+    df["Date"] = pd.to_datetime(df["Date"])
 
-    importances.to_csv(MODELS_DIR / "feature_importances.csv")
+    log.info("Building Economic Stress Score...")
 
-    return model
+    df["ESS"] = build_ess(df)
+
+    df["ESS_target"] = df["ESS"].shift(-FORECAST_HORIZON_MONTHS)
+
+    rows_before = len(df)
+
+    df = df.dropna(subset=["ESS_target"]).reset_index(drop=True)
+
+    log.info(
+        "Dropped %d rows because future target is unavailable.",
+        rows_before - len(df),
+    )
+
+    df.to_csv(file_path, index=False)
+
+    log.info("Saved %s", file_path)
+
+    log.info("\nESS Statistics")
+
+    log.info(df["ESS"].describe())
+
+    log.info("\nColumns Added:")
+    log.info("ESS")
+    log.info("ESS_target")
+
+    return df
 
 
 if __name__ == "__main__":
