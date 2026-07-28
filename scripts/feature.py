@@ -11,23 +11,33 @@ PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 
 # Columns to turn into a percent-change feature (e.g. CPI -> inflation rate)
 COLUMNS_FOR_PCT_CHANGE = [
-    "fred_CPI",
-    "fred_GDP",
-    "fred_UnemploymentRate",
+    "cpi_CPI",
+    "india_cpi_IndiaCPI",
+    "india_gdp_IndiaGDP",
+    "industrial_production_IndustrialProduction",
+    "interest_rate_FederalFundsRate",
+    "unemployment_Unemployment",
 ]
 
-# Columns to compute rolling stats and momentum on (usually market data)
 COLUMNS_FOR_ROLLING = [
-    "yahoo_sp500_Close",
-    "yahoo_gold_Close",
+    "sp500_Close",
+    "gold_Close",
+    "oil_Close",
+    "nasdaq_Close",
+    "sensex_Close",
+    "nifty50_Close",
 ]
 
+# Lag features
 COLUMNS_FOR_LAG = [
-    "fred_CPI",
-    "fred_GDP",
-    "yahoo_gold_Close",
+    "cpi_CPI",
+    "india_cpi_IndiaCPI",
+    "india_gdp_IndiaGDP",
+    "interest_rate_FederalFundsRate",
+    "unemployment_Unemployment",
+    "gold_Close",
+    "oil_Close",
 ]
-
 ROLLING_WINDOWS = [3, 6]
 LAG_PERIODS = [1]
 
@@ -72,16 +82,32 @@ def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_feature_table(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
+
+    # Make sure Date exists
+    if "Date" not in df.columns:
+        raise ValueError("Date column not found in master_dataset.csv")
+
     df["Date"] = pd.to_datetime(df["Date"])
 
+    # Sort chronologically
+    df = df.sort_values("Date").reset_index(drop=True)
+
+    # Feature Engineering
     df = add_pct_change_features(df, COLUMNS_FOR_PCT_CHANGE)
     df = add_rolling_features(df, COLUMNS_FOR_ROLLING, ROLLING_WINDOWS)
     df = add_lag_features(df, COLUMNS_FOR_LAG, LAG_PERIODS)
     df = add_time_features(df)
 
     rows_before = len(df)
+
+    # Remove rows created by rolling windows/lags
     df = df.dropna().reset_index(drop=True)
-    log.info("Feature table: %d -> %d rows after dropping NaNs from new features", rows_before, len(df))
+
+    log.info(
+        "Feature table: %d -> %d rows after dropping NaNs",
+        rows_before,
+        len(df),
+    )
 
     return df
 
