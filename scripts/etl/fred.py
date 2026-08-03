@@ -1,108 +1,91 @@
-"""
-FRED ETL Pipeline
------------------
-Downloads economic indicators from the Federal Reserve (FRED)
-and stores them in data/raw/fred/
-
-Author: MIRAI
-"""
-
 import os
 from pathlib import Path
 
 import pandas as pd
+import pyfredapi as pf
 from dotenv import load_dotenv
-from pyfredapi import Fred
 
-
-# =========================
-# Load Environment Variables
-# =========================
 
 load_dotenv()
 
 API_KEY = os.getenv("FRED_API_KEY")
 
-if API_KEY is None:
+if not API_KEY:
     raise ValueError("FRED_API_KEY not found in .env")
 
 
-# =========================
-# Initialize Client
-# =========================
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-fred = Fred(api_key=API_KEY)
-
-
-# =========================
-# Output Directory
-# =========================
-
-RAW_DIR = Path("data/raw/fred")
+RAW_DIR = PROJECT_ROOT / "data" / "raw" / "fred"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# =========================
 # Economic Indicators
-# =========================
+
 
 SERIES = {
     "vix": "VIXCLS",
     "yield_curve": "T10Y2Y",
     "building_permits": "PERMIT",
     "unemployment_rate": "UNRATE",
-    "consumer_confidence": "UMCSENT",
+    "consumer_sentiment": "UMCSENT",
     "industrial_production": "INDPRO",
     "federal_funds_rate": "FEDFUNDS",
     "cpi": "CPIAUCSL",
     "housing_starts": "HOUST",
-    "retail_sales": "RSAFS"
+    "retail_sales": "RSAFS",
 }
 
 
-# =========================
-# Download Function
-# =========================
 
-def download_series(name: str, series_id: str) -> None:
-    """
-    Downloads one FRED series and saves it as CSV.
-    """
+def download_series(series_name: str, series_id: str):
 
-    print(f"Downloading {name} ({series_id})...")
+    print(f"\nDownloading {series_name} ({series_id})")
 
-    df = fred.get_series(series_id=series_id)
+    try:
 
-    if isinstance(df, pd.Series):
-        df = df.reset_index()
-        df.columns = ["Date", "Value"]
+        df = pf.get_series(
+            series_id=series_id,
+            api_key=API_KEY,
+        )
 
-    output_file = RAW_DIR / f"{name}.csv"
+        if isinstance(df, pd.Series):
+            df = df.reset_index()
+            df.columns = ["Date", "Value"]
 
-    df.to_csv(output_file, index=False)
+        elif isinstance(df, pd.DataFrame):
 
-    print(f"Saved -> {output_file}")
+            cols = {c.lower(): c for c in df.columns}
+
+            if "date" in cols:
+                df.rename(columns={cols["date"]: "Date"}, inplace=True)
+
+            if "value" in cols:
+                df.rename(columns={cols["value"]: "Value"}, inplace=True)
+
+        output_path = RAW_DIR / f"{series_name}.csv"
+
+        df.to_csv(output_path, index=False)
+
+        print(f"Saved -> {output_path}")
+
+    except Exception as e:
+
+        print(f"Failed -> {series_name}")
+        print(e)
 
 
-# =========================
-# Main
-# =========================
 
 def main():
 
-    print("=" * 50)
-    print("MIRAI FRED ETL")
-    print("=" * 50)
+    print("=" * 60)
+    print("MIRAI - FRED ETL")
+    print("=" * 60)
 
     for name, sid in SERIES.items():
-        try:
-            download_series(name, sid)
+        download_series(name, sid)
 
-        except Exception as e:
-            print(f"Failed: {name}")
-            print(e)
-
-    print("\nDone!")
+    print("\nFinished downloading all FRED datasets.")
 
 
 if __name__ == "__main__":
