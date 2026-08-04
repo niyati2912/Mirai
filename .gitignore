@@ -1,1 +1,4 @@
 data
+# Environment variables
+.env
+.venv/

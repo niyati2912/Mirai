@@ -1,15 +1,37 @@
 from pathlib import Path
+import logging
+import time
+
 import pandas as pd
 from trendspy import Trends
 
+
+# --------------------------------------------------------------------------
+# Configuration
+# --------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+logger = logging.getLogger("mirai.trends")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 RAW_DIR = PROJECT_ROOT / "data" / "raw" / "trends"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
+TIMEFRAME = "today 5-y"
+GEO = "US"
+REQUEST_DELAY = 2
+
 trends = Trends()
 
+
+# --------------------------------------------------------------------------
+# Behavioral Vocabulary
+# --------------------------------------------------------------------------
 
 BEHAVIORAL_VOCABULARY = {
 
@@ -63,31 +85,58 @@ BEHAVIORAL_VOCABULARY = {
 }
 
 
-def download_category(category, keywords):
+# --------------------------------------------------------------------------
+# Download
+# --------------------------------------------------------------------------
 
-    print(f"\nDownloading {category}")
+def download_category(category: str, keywords: list[str]) -> bool:
+
+    logger.info("=" * 60)
+    logger.info("Downloading category: %s", category)
+    logger.info("=" * 60)
 
     try:
 
         df = trends.interest_over_time(
             keywords=keywords,
-            geo="US",
-            timeframe="all"
+            geo=GEO,
+            timeframe=TIMEFRAME
         )
 
-        df.to_csv(
-            RAW_DIR / f"{category}.csv",
-            index=True
+        if df.empty:
+            raise ValueError("No data returned.")
+
+        if "isPartial" in df.columns:
+            df = df.drop(columns=["isPartial"])
+
+        output_path = RAW_DIR / f"{category}.csv"
+
+        df.to_csv(output_path, index=True)
+
+        logger.info(
+            "Saved %s (%d rows)",
+            output_path.name,
+            len(df)
         )
 
-        print(f"Saved {category}")
+        time.sleep(REQUEST_DELAY)
+
+        return True
 
     except Exception as e:
 
-        print(f"Failed {category}")
-        print(e)
+        logger.error(
+            "Failed to download %s: %s",
+            category,
+            e
+        )
+
+        return False
 
 
+# --------------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------------
 
 def main():
 
@@ -95,11 +144,20 @@ def main():
     print("MIRAI - GOOGLE TRENDS ETL")
     print("=" * 60)
 
+    successful = 0
+
     for category, keywords in BEHAVIORAL_VOCABULARY.items():
 
-        download_category(category, keywords)
+        if download_category(category, keywords):
+            successful += 1
 
-    print("\nFinished downloading TrendSpy datasets.")
+    print("\nSummary")
+    print(f"Downloaded: {successful}/{len(BEHAVIORAL_VOCABULARY)} datasets")
+
+    if successful == len(BEHAVIORAL_VOCABULARY):
+        print("All datasets downloaded successfully.")
+    else:
+        print("Some datasets failed. Check logs above.")
 
 
 if __name__ == "__main__":
