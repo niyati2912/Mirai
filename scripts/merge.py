@@ -1,9 +1,8 @@
-from __future__ import annotations
-
 import logging
 from pathlib import Path
 
 import pandas as pd
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,30 +11,32 @@ logging.basicConfig(
 
 log = logging.getLogger("mirai.merge")
 
+
+# ============================================================================
+# PATHS
+# ============================================================================
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-
 FRED_DIR = RAW_DIR / "fred"
 EIA_DIR = RAW_DIR / "eia"
 TRENDS_DIR = RAW_DIR / "trends"
 
-PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR = PROJECT_ROOT / "data" / "processed"
+OUTPUT_FILE = OUTPUT_DIR / "master_dataset.csv"
 
-OUTPUT_FILE = PROCESSED_DIR / "master_dataset.csv"
-
-# Google Trends currently begins in 2021.
-# This gives us a common period where all three major sources
-# can contribute to MIRAI.
-START_DATE = pd.Timestamp("2021-08-01")
+OUTPUT_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
 
 
-# ---------------------------------------------------------------------
-# Dataset definitions
-# ---------------------------------------------------------------------
+# ============================================================================
+# DATASET CONFIGURATION
+# ============================================================================
 
-FRED_DATASETS = {
+FRED_FILES = {
     "vix": "vix.csv",
     "yield_curve": "yield_curve.csv",
     "building_permits": "building_permits.csv",
@@ -48,14 +49,16 @@ FRED_DATASETS = {
     "retail_sales": "retail_sales.csv",
 }
 
-EIA_DATASETS = {
+
+EIA_FILES = {
     "electricity_demand": "electricity_demand.csv",
     "electricity_generation": "electricity_generation.csv",
     "natural_gas_prices": "natural_gas_prices.csv",
     "petroleum_prices": "petroleum_prices.csv",
 }
 
-TREND_DATASETS = {
+
+TRENDS_FILES = {
     "consumer_caution": "consumer_caution.csv",
     "economic_optimism": "economic_optimism.csv",
     "employment_stress": "employment_stress.csv",
@@ -65,96 +68,222 @@ TREND_DATASETS = {
 }
 
 
-# ---------------------------------------------------------------------
-# Date handling
-# ---------------------------------------------------------------------
+# ============================================================================
+# DATE HANDLING
+# ============================================================================
 
-def find_date_column(df: pd.DataFrame) -> str:
-    candidates = [
-        "Date",
-        "date",
-        "DATE",
-        "period",
-        "Period",
-        "time",
-        "Time",
-        "time [UTC]",
-        "Time [UTC]",
-        "timestamp",
-        "Timestamp",
-    ]
+DATE_COLUMNS = (
+    "Date",
+    "date",
+    "DATE",
+    "time",
+    "Time",
+    "time [UTC]",
+    "period",
+)
 
-    for column in candidates:
+
+def find_date_column(
+    df: pd.DataFrame,
+) -> str:
+
+    for column in DATE_COLUMNS:
+
         if column in df.columns:
+            return column
+
+    # Fallback: look for columns containing date/time.
+    for column in df.columns:
+
+        name = str(column).lower()
+
+        if (
+            "date" in name
+            or "time" in name
+            or "period" in name
+        ):
             return column
 
     raise ValueError(
         f"No date column found. Columns: {list(df.columns)}"
     )
 
+
+def standardize_month(
+    series: pd.Series,
+) -> pd.Series:
+
+    dates = pd.to_datetime(
+        series,
+        errors="coerce",
+        utc=True,
+    )
+
+    # Remove timezone after parsing.
+    dates = dates.dt.tz_localize(None)
+
+    # Convert every observation to the first day of its month.
+    return dates.dt.to_period("M").dt.to_timestamp()
+
+
+# ============================================================================
+# COLUMN HANDLING
+# ============================================================================
+
+def clean_column_name(
+    column: str,
+) -> str:
+
+    column = str(column).strip()
+
+    column = (
+        column
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace("(", "")
+        .replace(")", "")
+    )
+
+    return column
+
+
+def make_unique_columns(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+
+    columns = []
+    counts = {}
+
+    for column in df.columns:
+
+        column = clean_column_name(
+            column
+        )
+
+        if column not in counts:
+
+            counts[column] = 0
+            columns.append(column)
+
+        else:
+
+            counts[column] += 1
+
+            columns.append(
+                f"{column}_{counts[column]}"
+            )
+
+    df.columns = columns
+
+    return df
+
+
+# ============================================================================
+# DATASET PREPARATION
+# ============================================================================
+
 def prepare_dataframe(
     df: pd.DataFrame,
     source_name: str,
 ) -> pd.DataFrame:
 
-    date_column = find_date_column(df)
-
     df = df.copy()
 
-    df[date_column] = pd.to_datetime(
-        df[date_column],
-        errors="coerce",
-        utc=True,
-    )
+    df = make_unique_columns(df)
 
-    df = df.dropna(subset=[date_column])
+    date_column = find_date_column(df)
 
-    df[date_column] = df[date_column].dt.tz_localize(None)
-
-    # Convert everything to monthly timestamps.
-    df["Date"] = (
+    df["Date"] = standardize_month(
         df[date_column]
-        .dt.to_period("M")
-        .dt.to_timestamp()
     )
 
-    # Find numeric indicator columns.
+    if date_column != "Date":
+        df = df.drop(
+            columns=[date_column]
+        )
+
+    # Remove rows with invalid dates.
+    df = df.dropna(
+        subset=["Date"]
+    )
+
+    # Remove completely empty columns.
+    df = df.dropna(
+        axis=1,
+        how="all",
+    )
+
+    # Convert non-date columns to numeric where possible.
+    for column in df.columns:
+
+        if column == "Date":
+            continue
+
+        df[column] = pd.to_numeric(
+            df[column],
+            errors="coerce",
+        )
+
+    # Remove columns that contain no numeric data.
     value_columns = [
         column
         for column in df.columns
         if column != "Date"
-        and column != date_column
-        and pd.api.types.is_numeric_dtype(df[column])
+        and df[column].notna().any()
     ]
 
-    if not value_columns:
-        raise ValueError(
-            f"{source_name}: no numeric columns found."
+    df = df[
+        ["Date"] + value_columns
+    ]
+
+    # Aggregate duplicate monthly observations.
+    if df["Date"].duplicated().any():
+
+        duplicate_count = int(
+            df["Date"].duplicated().sum()
         )
 
-    result = df[["Date"] + value_columns].copy()
+        log.warning(
+            "%s contains %d duplicate monthly dates. "
+            "Aggregating duplicates using mean.",
+            source_name,
+            duplicate_count,
+        )
 
-    # Prefix columns so names remain unique after merging.
-    result = result.rename(
-        columns={
-            column: f"{source_name}_{column}"
-            for column in value_columns
-        }
+        df = (
+            df
+            .groupby(
+                "Date",
+                as_index=False,
+            )
+            .mean(
+                numeric_only=True
+            )
+        )
+
+    # Prefix every source column.
+    renamed = {
+        column: f"{source_name}_{column}"
+        for column in df.columns
+        if column != "Date"
+    }
+
+    df = df.rename(
+        columns=renamed
     )
 
-    # Multiple observations per month -> monthly mean.
-    result = (
-        result
-        .groupby("Date", as_index=False)
-        .mean(numeric_only=True)
+    df = (
+        df
+        .sort_values("Date")
+        .reset_index(drop=True)
     )
 
-    return result
+    return df
 
 
-# ---------------------------------------------------------------------
-# Loading
-# ---------------------------------------------------------------------
+# ============================================================================
+# LOAD ONE DATASET
+# ============================================================================
 
 def load_dataset(
     directory: Path,
@@ -165,13 +294,19 @@ def load_dataset(
     path = directory / filename
 
     if not path.exists():
+
         raise FileNotFoundError(
             f"Dataset not found: {path}"
         )
 
-    log.info("Loading %s", path)
+    log.info(
+        "Loading %s",
+        path,
+    )
 
-    df = pd.read_csv(path)
+    df = pd.read_csv(
+        path
+    )
 
     result = prepare_dataframe(
         df,
@@ -185,15 +320,32 @@ def load_dataset(
         len(result.columns),
     )
 
+    if len(result) > 0:
+
+        log.info(
+            "%s date range: %s -> %s",
+            source_name,
+            result["Date"].min(),
+            result["Date"].max(),
+        )
+
     return result
 
+
+# ============================================================================
+# LOAD ALL DATASETS
+# ============================================================================
 
 def load_all_datasets() -> list[pd.DataFrame]:
 
     datasets = []
 
-    # FRED
-    for name, filename in FRED_DATASETS.items():
+    log.info("=" * 70)
+    log.info("LOADING FRED DATASETS")
+    log.info("=" * 70)
+
+    for name, filename in FRED_FILES.items():
+
         datasets.append(
             load_dataset(
                 FRED_DIR,
@@ -202,8 +354,12 @@ def load_all_datasets() -> list[pd.DataFrame]:
             )
         )
 
-    # EIA
-    for name, filename in EIA_DATASETS.items():
+    log.info("=" * 70)
+    log.info("LOADING EIA DATASETS")
+    log.info("=" * 70)
+
+    for name, filename in EIA_FILES.items():
+
         datasets.append(
             load_dataset(
                 EIA_DIR,
@@ -212,8 +368,12 @@ def load_all_datasets() -> list[pd.DataFrame]:
             )
         )
 
-    # Google Trends
-    for name, filename in TREND_DATASETS.items():
+    log.info("=" * 70)
+    log.info("LOADING GOOGLE TRENDS DATASETS")
+    log.info("=" * 70)
+
+    for name, filename in TRENDS_FILES.items():
+
         datasets.append(
             load_dataset(
                 TRENDS_DIR,
@@ -225,67 +385,238 @@ def load_all_datasets() -> list[pd.DataFrame]:
     return datasets
 
 
-# ---------------------------------------------------------------------
-# Merge
-# ---------------------------------------------------------------------
+# ============================================================================
+# CREATE COMPLETE MONTHLY TIMELINE
+# ============================================================================
+
+def create_monthly_spine(
+    datasets: list[pd.DataFrame],
+) -> pd.DataFrame:
+
+    minimum_dates = []
+    maximum_dates = []
+
+    for df in datasets:
+
+        if df.empty:
+            continue
+
+        minimum_dates.append(
+            df["Date"].min()
+        )
+
+        maximum_dates.append(
+            df["Date"].max()
+        )
+
+    if not minimum_dates:
+
+        raise RuntimeError(
+            "No valid datasets were loaded."
+        )
+
+    start_date = min(
+        minimum_dates
+    )
+
+    end_date = max(
+        maximum_dates
+    )
+
+    timeline = pd.date_range(
+        start=start_date,
+        end=end_date,
+        freq="MS",
+    )
+
+    spine = pd.DataFrame(
+        {
+            "Date": timeline
+        }
+    )
+
+    log.info(
+        "Complete monthly timeline: %s -> %s",
+        start_date,
+        end_date,
+    )
+
+    log.info(
+        "Timeline contains %d months.",
+        len(spine),
+    )
+
+    return spine
+
+
+# ============================================================================
+# OUTER MERGE
+# ============================================================================
 
 def merge_datasets(
     datasets: list[pd.DataFrame],
 ) -> pd.DataFrame:
 
-    if not datasets:
-        raise RuntimeError("No datasets available.")
+    master = create_monthly_spine(
+        datasets
+    )
 
-    master = datasets[0].copy()
-
-    for dataset in datasets[1:]:
+    for dataset in datasets:
 
         master = master.merge(
             dataset,
             on="Date",
-            how="outer",
+            how="left",
         )
 
     master = (
         master
         .sort_values("Date")
-        .drop_duplicates("Date")
         .reset_index(drop=True)
     )
 
     return master
 
 
-# ---------------------------------------------------------------------
-# Missing values
-# ---------------------------------------------------------------------
+# ============================================================================
+# VALIDATION
+# ============================================================================
 
-def handle_missing_values(
+def validate_master(
     df: pd.DataFrame,
-) -> pd.DataFrame:
+) -> None:
 
-    df = df.copy()
+    log.info("=" * 70)
+    log.info("MASTER DATASET VALIDATION")
+    log.info("=" * 70)
 
-    value_columns = [
+    if df.empty:
+
+        raise RuntimeError(
+            "Master dataset is empty."
+        )
+
+    if df["Date"].isna().any():
+
+        raise RuntimeError(
+            "Master dataset contains invalid dates."
+        )
+
+    if df["Date"].duplicated().any():
+
+        raise RuntimeError(
+            "Master dataset contains duplicate dates."
+        )
+
+    if not df["Date"].is_monotonic_increasing:
+
+        raise RuntimeError(
+            "Master dates are not sorted."
+        )
+
+    log.info(
+        "Rows: %d",
+        len(df),
+    )
+
+    log.info(
+        "Columns: %d",
+        len(df.columns),
+    )
+
+    log.info(
+        "Date range: %s -> %s",
+        df["Date"].min(),
+        df["Date"].max(),
+    )
+
+    log.info(
+        "Missing-value summary by source:"
+    )
+
+    for prefix in (
+        "fred_",
+        "eia_",
+        "trends_",
+    ):
+
+        source_columns = [
+            column
+            for column in df.columns
+            if column.startswith(prefix)
+        ]
+
+        if not source_columns:
+            continue
+
+        missing = int(
+            df[source_columns]
+            .isna()
+            .sum()
+            .sum()
+        )
+
+        total = (
+            len(df)
+            * len(source_columns)
+        )
+
+        percentage = (
+            missing / total * 100
+            if total
+            else 0
+        )
+
+        log.info(
+            "  %s -> %.2f%% missing",
+            prefix.rstrip("_"),
+            percentage,
+        )
+
+    # Specifically report the historical Trends gap.
+    trends_columns = [
         column
         for column in df.columns
-        if column != "Date"
+        if column.startswith("trends_")
     ]
 
-    # Only forward-fill.
-    #
-    # We NEVER back-fill because that would use future observations
-    # to populate earlier dates and create information leakage.
-    df[value_columns] = df[value_columns].ffill()
+    if trends_columns:
 
-    return df
+        trends_available = (
+            df[trends_columns]
+            .notna()
+            .any(axis=1)
+        )
+
+        if trends_available.any():
+
+            first_trends_date = (
+                df.loc[
+                    trends_available,
+                    "Date",
+                ].min()
+            )
+
+            log.info(
+                "Google Trends coverage begins: %s",
+                first_trends_date,
+            )
+
+            before_trends = df[
+                df["Date"] < first_trends_date
+            ]
+
+            log.info(
+                "Rows before Trends coverage: %d",
+                len(before_trends),
+            )
 
 
-# ---------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------
+# ============================================================================
+# MAIN
+# ============================================================================
 
-def main() -> pd.DataFrame:
+def main():
 
     log.info("=" * 70)
     log.info("MIRAI MASTER DATASET BUILDER")
@@ -297,51 +628,32 @@ def main() -> pd.DataFrame:
     log.info("MERGING DATASETS")
     log.info("=" * 70)
 
-    master = merge_datasets(datasets)
+    master = merge_datasets(
+        datasets
+    )
 
     log.info(
-        "Before date filtering: %d rows x %d columns",
+        "Merged dataset: %d rows x %d columns",
         len(master),
         len(master.columns),
     )
 
-    # Remove the old sparse FRED-only history.
-    master = master[
-        master["Date"] >= START_DATE
-    ].copy()
-
-    master = master.sort_values("Date").reset_index(drop=True)
-
-    log.info(
-        "After date filtering: %d rows",
-        len(master),
+    validate_master(
+        master
     )
 
-    # Fill only information that was already available.
-    master = handle_missing_values(master)
-
-    # Remove completely empty columns.
-    empty_columns = [
+    # Keep Date first.
+    columns = [
+        "Date"
+    ] + [
         column
         for column in master.columns
         if column != "Date"
-        and master[column].isna().all()
     ]
 
-    if empty_columns:
-
-        log.warning(
-            "Removing %d completely empty columns: %s",
-            len(empty_columns),
-            empty_columns,
-        )
-
-        master = master.drop(
-            columns=empty_columns
-        )
-
-    # Final validation.
-    master = master.sort_values("Date").reset_index(drop=True)
+    master = master[
+        columns
+    ]
 
     master.to_csv(
         OUTPUT_FILE,
@@ -350,42 +662,26 @@ def main() -> pd.DataFrame:
 
     log.info("=" * 70)
     log.info("MASTER DATASET CREATED")
-    log.info("Output: %s", OUTPUT_FILE)
+    log.info("=" * 70)
+
+    log.info(
+        "Output: %s",
+        OUTPUT_FILE,
+    )
+
     log.info(
         "Shape: %d rows x %d columns",
         len(master),
         len(master.columns),
     )
+
     log.info(
         "Date range: %s -> %s",
         master["Date"].min(),
         master["Date"].max(),
     )
 
-    missing = master.isna().sum()
-
-    remaining_missing = missing[
-        missing > 0
-    ].sort_values(ascending=False)
-
-    if not remaining_missing.empty:
-
-        log.info("Remaining missing values:")
-
-        for column, count in remaining_missing.items():
-
-            log.info(
-                "  %-45s %d",
-                column,
-                count,
-            )
-
-    else:
-        log.info("No missing values remain.")
-
     log.info("=" * 70)
-
-    return master
 
 
 if __name__ == "__main__":

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 
@@ -100,19 +102,13 @@ def find_indicator_columns(
 def calculate_change(
     series: pd.Series,
 ) -> pd.Series:
-    """
-    Calculate a 3-month relative change.
-
-    If percentage change is undefined because of zero values,
-    fall back to absolute change.
-    """
 
     series = pd.to_numeric(
         series,
         errors="coerce",
     )
 
-    percentage_change = series.pct_change(
+    pct_change = series.pct_change(
         periods=CHANGE_WINDOW
     )
 
@@ -120,16 +116,16 @@ def calculate_change(
         periods=CHANGE_WINDOW
     )
 
-    result = percentage_change.copy()
-
     invalid = (
-        ~np.isfinite(result)
+        ~np.isfinite(pct_change)
         | series.shift(CHANGE_WINDOW).eq(0)
     )
 
-    result[invalid] = absolute_change[invalid]
+    pct_change[invalid] = (
+        absolute_change[invalid]
+    )
 
-    return result.replace(
+    return pct_change.replace(
         [np.inf, -np.inf],
         np.nan,
     )
@@ -163,9 +159,8 @@ def calculate_trailing_zscore(
     )
 
     return (
-        (series - rolling_mean)
-        / rolling_std
-    )
+        series - rolling_mean
+    ) / rolling_std
 
 
 def calculate_stress_signal(
@@ -175,12 +170,14 @@ def calculate_stress_signal(
 
     change = calculate_change(series)
 
-    stress = calculate_trailing_zscore(change)
+    score = calculate_trailing_zscore(
+        change
+    )
 
     if not higher_is_stress:
-        stress = -stress
+        score = -score
 
-    return stress
+    return score
 
 
 def build_indicator_score(
@@ -195,10 +192,12 @@ def build_indicator_score(
     )
 
     if not columns:
+
         log.warning(
-            "No source columns found for %s",
+            "No columns found for %s",
             prefix,
         )
+
         return None
 
     scores = []
@@ -211,9 +210,6 @@ def build_indicator_score(
         )
 
         scores.append(score)
-
-    if not scores:
-        return None
 
     return pd.concat(
         scores,
@@ -287,27 +283,46 @@ def build_ess(
 
         result[f"ESS_{category}"] = score
 
-    weighted_scores = []
+    score_df = pd.DataFrame(
+        category_scores,
+        index=result.index,
+    )
 
-    for category, weight in CATEGORY_WEIGHTS.items():
+    weight_series = pd.Series(
+        CATEGORY_WEIGHTS
+    )
 
-        weighted_scores.append(
-            category_scores[category] * weight
+    available = score_df.notna()
+
+    weighted_scores = score_df.mul(
+        weight_series,
+        axis=1,
+    )
+
+    available_weights = available.mul(
+        weight_series,
+        axis=1,
+    )
+
+    raw_ess = (
+        weighted_scores.sum(
+            axis=1,
+            min_count=1,
         )
-
-    weighted = pd.concat(
-        weighted_scores,
-        axis=1,
+        /
+        available_weights.sum(
+            axis=1,
+            min_count=1,
+        )
     )
 
-    raw_ess = weighted.sum(
-        axis=1,
-        min_count=2,
+    raw_ess = raw_ess.replace(
+        [np.inf, -np.inf],
+        np.nan,
     )
 
-    # Standardized composite -> approximately 0-100.
     result["ESS"] = (
-        50 + (raw_ess * 10)
+        50 + raw_ess * 10
     ).clip(
         lower=0,
         upper=100,
@@ -320,14 +335,14 @@ def create_target(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
 
-    df = df.copy()
+    result = df.copy()
 
-    df["ESS_target"] = (
-        df["ESS"]
+    result["ESS_target"] = (
+        result["ESS"]
         .shift(-FORECAST_HORIZON)
     )
 
-    return df
+    return result
 
 
 def main():
@@ -337,6 +352,7 @@ def main():
     log.info("=" * 70)
 
     if not INPUT_FILE.exists():
+
         raise FileNotFoundError(
             f"Feature table not found: {INPUT_FILE}"
         )
@@ -346,12 +362,13 @@ def main():
     )
 
     if df.empty:
+
         raise RuntimeError(
-            "feature_table.csv is empty. "
-            "Run scripts/feature.py first."
+            "feature_table.csv is empty."
         )
 
     if "Date" not in df.columns:
+
         raise ValueError(
             "Date column not found."
         )
@@ -374,10 +391,6 @@ def main():
         len(df.columns),
     )
 
-    # ---------------------------------------------------------------
-    # Build current stress score
-    # ---------------------------------------------------------------
-
     df = build_ess(df)
 
     valid_ess = int(
@@ -391,13 +404,10 @@ def main():
     )
 
     if valid_ess == 0:
+
         raise RuntimeError(
             "No valid ESS values were produced."
         )
-
-    # ---------------------------------------------------------------
-    # Keep only observations with current ESS
-    # ---------------------------------------------------------------
 
     before = len(df)
 
@@ -411,10 +421,6 @@ def main():
         "Removed %d rows without current ESS.",
         before - len(df),
     )
-
-    # ---------------------------------------------------------------
-    # Future target
-    # ---------------------------------------------------------------
 
     df = create_target(df)
 
@@ -431,13 +437,14 @@ def main():
         before - len(df),
     )
 
-    # ---------------------------------------------------------------
-    # Validation
-    # ---------------------------------------------------------------
-
     log.info("=" * 70)
     log.info("ESS VALIDATION")
     log.info("=" * 70)
+
+    log.info(
+        "ESS count: %d",
+        df["ESS"].count(),
+    )
 
     log.info(
         "ESS mean: %.3f",
@@ -460,13 +467,8 @@ def main():
     )
 
     log.info(
-        "ESS target mean: %.3f",
-        df["ESS_target"].mean(),
-    )
-
-    log.info(
-        "ESS target std: %.3f",
-        df["ESS_target"].std(),
+        "ESS target count: %d",
+        df["ESS_target"].count(),
     )
 
     log.info(
@@ -474,20 +476,6 @@ def main():
         df["Date"].min(),
         df["Date"].max(),
     )
-
-    if df["ESS"].isna().any():
-        raise RuntimeError(
-            "ESS contains NaN values."
-        )
-
-    if df["ESS_target"].isna().any():
-        raise RuntimeError(
-            "ESS_target contains NaN values."
-        )
-
-    # ---------------------------------------------------------------
-    # Save separate dataset
-    # ---------------------------------------------------------------
 
     df.to_csv(
         OUTPUT_FILE,
