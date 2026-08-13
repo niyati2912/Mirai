@@ -1,92 +1,198 @@
-from __future__ import annotations
-
-import argparse
 import logging
+from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] feature: %(message)s")
-logger = logging.getLogger("feature")
 
-ROLLING_WINDOWS = [3, 6, 12]
-ZSCORE_WINDOW = 24        # trailing window for a "current regime" z-score
-LAG_PERIODS = [1, 3, 6]
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
-DEFAULT_INPUT = "data/processed/master_dataset.csv"
-DEFAULT_OUTPUT = "data/processed/master_features.csv"
+log = logging.getLogger("mirai.feature")
 
 
-def numeric_columns(df: pd.DataFrame) -> list:
-    return [c for c in df.columns if c != "month" and pd.api.types.is_numeric_dtype(df[c])]
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+INPUT_FILE = PROJECT_ROOT / "data" / "processed" / "master_dataset.csv"
+OUTPUT_FILE = PROJECT_ROOT / "data" / "processed" / "feature_table.csv"
+
+EXCLUDED_FEATURES = {
+    "trends_consumer_caution_cheap groceries",
+}
 
 
-def add_rolling_stats(df: pd.DataFrame, cols: list) -> pd.DataFrame:
+def create_features(df: pd.DataFrame) -> pd.DataFrame:
+
     df = df.copy()
-    for col in cols:
-        for w in ROLLING_WINDOWS:
-            df[f"{col}_ma{w}"] = df[col].rolling(window=w, min_periods=w).mean()
-            df[f"{col}_std{w}"] = df[col].rolling(window=w, min_periods=w).std()
-    return df
 
+    if "Date" not in df.columns:
+        raise ValueError("Date column not found.")
 
-def add_pct_change(df: pd.DataFrame, cols: list) -> pd.DataFrame:
-    df = df.copy()
-    for col in cols:
-        df[f"{col}_pct_change"] = df[col].pct_change()
-    return df
+    df["Date"] = pd.to_datetime(df["Date"])
 
+    df = df.sort_values("Date").reset_index(drop=True)
 
-def add_lags(df: pd.DataFrame, cols: list) -> pd.DataFrame:
-    df = df.copy()
-    for col in cols:
-        for lag in LAG_PERIODS:
-            df[f"{col}_lag{lag}"] = df[col].shift(lag)
-    return df
+    base_columns = [
+        col
+        for col in df.columns
+        if col != "Date"
+        and pd.api.types.is_numeric_dtype(df[col])
+        and col not in EXCLUDED_FEATURES
+    ]
 
+    log.info("Base features: %d", len(base_columns))
 
-def add_rolling_zscore(df: pd.DataFrame, cols: list, window: int = ZSCORE_WINDOW) -> pd.DataFrame:
-    """
-    Trailing-window z-score: how far the current value sits from its
-    own recent history, in standard deviations. This is the input
-    ess_builder.py consumes to build the composite stress index.
-    """
-    df = df.copy()
-    for col in cols:
-        roll_mean = df[col].rolling(window=window, min_periods=max(6, window // 4)).mean()
-        roll_std = df[col].rolling(window=window, min_periods=max(6, window // 4)).std()
-        df[f"{col}_zscore"] = (df[col] - roll_mean) / roll_std.replace(0, np.nan)
-    return df
+    # Remove unusable source columns
+    df = df.drop(
+        columns=list(EXCLUDED_FEATURES),
+        errors="ignore",
+    )
 
+    engineered = {}
 
-def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    cols = numeric_columns(df)
-    if not cols:
-        raise ValueError("No numeric columns found to engineer features from.")
+    for column in base_columns:
 
-    logger.info("Engineering features for %d columns: %s", len(cols), cols)
+        series = df[column]
 
-    out = df.copy()
-    out = add_pct_change(out, cols)
-    out = add_rolling_stats(out, cols)
-    out = add_lags(out, cols)
-    out = add_rolling_zscore(out, cols)
-    return out
+        engineered[f"{column}_pct_change"] = (
+            series.pct_change()
+        )
+
+        engineered[f"{column}_lag1"] = (
+            series.shift(1)
+        )
+
+        engineered[f"{column}_rolling3"] = (
+            series.rolling(
+                window=3,
+                min_periods=3,
+            ).mean()
+        )
+
+        engineered[f"{column}_rolling6"] = (
+            series.rolling(
+                window=6,
+                min_periods=6,
+            ).mean()
+        )
+
+        engineered[f"{column}_rolling3_std"] = (
+            series.rolling(
+                window=3,
+                min_periods=3,
+            ).std()
+        )
+
+    engineered_df = pd.DataFrame(
+        engineered,
+        index=df.index,
+    )
+
+    result = pd.concat(
+        [df, engineered_df],
+        axis=1,
+    )
+
+    log.info(
+        "Created %d engineered features.",
+        len(engineered_df.columns),
+    )
+
+    # The first 6 months cannot have complete 6-month
+    # rolling features.
+    result = result.iloc[6:].reset_index(drop=True)
+
+    # Forward-fill only.
+    #
+    # Never back-fill because that would use future observations
+    # to populate earlier dates.
+    numeric_columns = result.select_dtypes(
+        include="number"
+    ).columns
+
+    result[numeric_columns] = (
+        result[numeric_columns]
+        .ffill()
+    )
+
+    # Remove columns that still contain no usable information.
+    all_nan_columns = [
+        column
+        for column in numeric_columns
+        if result[column].isna().all()
+    ]
+
+    if all_nan_columns:
+
+        log.warning(
+            "Removing %d columns with no usable values.",
+            len(all_nan_columns),
+        )
+
+        result = result.drop(
+            columns=all_nan_columns
+        )
+
+    remaining_nan = int(
+        result.select_dtypes(
+            include="number"
+        ).isna().sum().sum()
+    )
+
+    if remaining_nan:
+        log.warning(
+            "Remaining numeric NaN values: %d",
+            remaining_nan,
+        )
+    else:
+        log.info("No numeric NaN values remain.")
+
+    return result
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Engineer rolling/lag/z-score features on the master dataset")
-    parser.add_argument("--in", dest="input_path", default=DEFAULT_INPUT)
-    parser.add_argument("--out", dest="output_path", default=DEFAULT_OUTPUT)
-    args = parser.parse_args()
 
-    df = pd.read_csv(args.input_path, parse_dates=["month"])
-    featured = build_features(df)
+    log.info("=" * 70)
+    log.info("MIRAI FEATURE ENGINEERING")
+    log.info("=" * 70)
 
-    featured.to_csv(args.output_path, index=False)
-    logger.info("Feature dataset written -> %s (%d rows, %d cols)",
-                args.output_path, *featured.shape)
-    return featured
+    if not INPUT_FILE.exists():
+        raise FileNotFoundError(
+            f"Input file not found: {INPUT_FILE}"
+        )
+
+    log.info("Loading: %s", INPUT_FILE)
+
+    df = pd.read_csv(INPUT_FILE)
+
+    log.info(
+        "Input shape: %d rows x %d columns",
+        len(df),
+        len(df.columns),
+    )
+
+    feature_table = create_features(df)
+
+    feature_table.to_csv(
+        OUTPUT_FILE,
+        index=False,
+    )
+
+    log.info("=" * 70)
+    log.info("FEATURE TABLE CREATED")
+    log.info("Output: %s", OUTPUT_FILE)
+    log.info(
+        "Shape: %d rows x %d columns",
+        len(feature_table),
+        len(feature_table.columns),
+    )
+    log.info(
+        "Date range: %s -> %s",
+        feature_table["Date"].min(),
+        feature_table["Date"].max(),
+    )
+    log.info("=" * 70)
 
 
 if __name__ == "__main__":

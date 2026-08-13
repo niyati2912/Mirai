@@ -4,95 +4,185 @@ import argparse
 import logging
 import subprocess
 import sys
-
-import ess_builder
-import feature as feature_mod
-import merge as merge_mod
-
-sys.path.insert(0, "etl")
-from etl import pipeline as eia_pipeline  # noqa: E402
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] timeline: %(message)s")
-logger = logging.getLogger("timeline_pipeline")
+from pathlib import Path
 
 
-def run_eia_etl():
-    logger.info("=== Step 1a: EIA ETL ===")
-    try:
-        eia_pipeline.run_pipeline()
-    except Exception as exc:  # noqa: BLE001
-        logger.error("EIA ETL failed: %s — continuing, merge.py will skip missing sources", exc)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+logger = logging.getLogger("mirai.timeline")
 
 
-def run_fred_etl():
-    logger.info("=== Step 1b: FRED ETL ===")
-    logger.warning(
-        "run_fred_etl() is a stub — point this at your actual FRED pipeline entry point "
-        "so it writes data/processed/fred_master_monthly.csv. Skipping for now."
+def run_script(script: Path, *args: str) -> None:
+    """Run another MIRAI script using the current Python environment."""
+
+    logger.info("Running: %s %s", script.name, " ".join(args))
+
+    command = [
+        sys.executable,
+        str(script),
+        *args,
+    ]
+
+    result = subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        check=False,
     )
-    # Example once wired up:
-    # subprocess.run(["python", "fred_etl/pipeline.py"], check=True)
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{script.name} failed with exit code {result.returncode}"
+        )
 
 
-def run_merge():
-    """Calls merge.py's core function directly (not main()) so it doesn't
-    try to parse timeline_pipeline.py's own CLI args from sys.argv."""
-    logger.info("=== Step 2: Merge ===")
-    import os
-    paths = merge_mod.auto_discover()
-    master = merge_mod.merge_sources(paths)
-    os.makedirs("data/processed", exist_ok=True)
-    master.to_csv(merge_mod.DEFAULT_OUTPUT, index=False)
-    logger.info("Master dataset written -> %s (%d rows, %d cols)", merge_mod.DEFAULT_OUTPUT, *master.shape)
-    return master
+def run_etl() -> None:
+    """Run all available external-data ingestion pipelines."""
+
+    logger.info("=" * 70)
+    logger.info("STEP 1: DATA INGESTION")
+    logger.info("=" * 70)
+
+    etl_dir = SCRIPTS_DIR / "etl"
+
+    etl_scripts = [
+        etl_dir / "fred.py",
+        etl_dir / "eia_etl.py",
+        etl_dir / "trends.py",
+        etl_dir / "github_etl.py",
+    ]
+
+    for script in etl_scripts:
+
+        if not script.exists():
+            raise FileNotFoundError(
+                f"ETL script not found: {script}"
+            )
+
+        run_script(script)
 
 
-def run_feature_engineering():
-    logger.info("=== Step 3: Feature engineering ===")
-    import pandas as pd
-    df = pd.read_csv(merge_mod.DEFAULT_OUTPUT, parse_dates=["month"])
-    featured = feature_mod.build_features(df)
-    featured.to_csv(feature_mod.DEFAULT_OUTPUT, index=False)
-    logger.info("Feature dataset written -> %s (%d rows, %d cols)", feature_mod.DEFAULT_OUTPUT, *featured.shape)
-    return featured
+def run_merge() -> None:
+    """Merge raw datasets into the master monthly dataset."""
+
+    logger.info("=" * 70)
+    logger.info("STEP 2: DATA MERGING")
+    logger.info("=" * 70)
+
+    run_script(
+        SCRIPTS_DIR / "merge.py"
+    )
 
 
-def run_ess_build():
-    logger.info("=== Step 4: ESS build ===")
-    import pandas as pd
-    df = pd.read_csv(feature_mod.DEFAULT_OUTPUT, parse_dates=["month"])
-    ess_df = ess_builder.build_ess(df)
-    ess_df.to_csv(ess_builder.DEFAULT_OUTPUT, index=False)
-    logger.info("ESS timeline written -> %s (%d rows)", ess_builder.DEFAULT_OUTPUT, len(ess_df))
-    return ess_df
+def run_features() -> None:
+    """Create engineered features from the master dataset."""
+
+    logger.info("=" * 70)
+    logger.info("STEP 3: FEATURE ENGINEERING")
+    logger.info("=" * 70)
+
+    run_script(
+        SCRIPTS_DIR / "feature.py"
+    )
 
 
-def run_model_training():
-    logger.info("=== Step 5: Model training ===")
-    subprocess.run(["python", "train_model.py", "--mode", "reconstruct"], check=True)
-    subprocess.run(["python", "train_model.py", "--mode", "forecast", "--horizon", "3"], check=True)
+def run_ess() -> None:
+    """Build the Economic Stress Score."""
+
+    logger.info("=" * 70)
+    logger.info("STEP 4: ECONOMIC STRESS SCORE")
+    logger.info("=" * 70)
+
+    ess_script = SCRIPTS_DIR / "ess_builder.py"
+
+    if not ess_script.exists():
+
+        # Current repository contains ess_builer.py.
+        # This fallback keeps the pipeline working until the filename
+        # is corrected.
+        old_script = SCRIPTS_DIR / "ess_builer.py"
+
+        if old_script.exists():
+            ess_script = old_script
+        else:
+            raise FileNotFoundError(
+                "ESS builder not found. Expected ess_builder.py."
+            )
+
+    run_script(ess_script)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run the full MIRAI timeline build")
-    parser.add_argument("--skip-etl", action="store_true", help="Skip EIA/FRED extraction, reuse existing CSVs")
-    parser.add_argument("--train", action="store_true", help="Also train reconstruct + forecast models at the end")
+def run_training() -> None:
+    """Train the ESS forecasting model."""
+
+    logger.info("=" * 70)
+    logger.info("STEP 5: MODEL TRAINING")
+    logger.info("=" * 70)
+
+    run_script(
+        SCRIPTS_DIR / "train_model.py",
+        "--mode",
+        "forecast",
+        "--horizon",
+        "3",
+    )
+
+
+def main() -> None:
+
+    parser = argparse.ArgumentParser(
+        description="Run the MIRAI economic intelligence pipeline."
+    )
+
+    parser.add_argument(
+        "--skip-etl",
+        action="store_true",
+        help="Reuse existing raw datasets.",
+    )
+
+    parser.add_argument(
+        "--train",
+        action="store_true",
+        help="Train the ESS forecasting model after processing.",
+    )
+
     args = parser.parse_args()
 
-    if not args.skip_etl:
-        run_eia_etl()
-        run_fred_etl()
-    else:
-        logger.info("Skipping ETL steps (--skip-etl); reusing existing data/processed CSVs")
+    logger.info("=" * 70)
+    logger.info("MIRAI ECONOMIC INTELLIGENCE PIPELINE")
+    logger.info("=" * 70)
 
-    run_merge()
-    run_feature_engineering()
-    run_ess_build()
+    try:
 
-    if args.train:
-        run_model_training()
+        if not args.skip_etl:
+            run_etl()
+        else:
+            logger.info("Skipping ETL.")
 
-    logger.info("Timeline build complete. See data/processed/ess_timeline.csv")
+        run_merge()
+        run_features()
+        run_ess()
+
+        if args.train:
+            run_training()
+
+        logger.info("=" * 70)
+        logger.info("PIPELINE COMPLETED SUCCESSFULLY")
+        logger.info("=" * 70)
+
+    except Exception as exc:
+
+        logger.error("=" * 70)
+        logger.error("PIPELINE FAILED")
+        logger.error("%s", exc)
+        logger.error("=" * 70)
+
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
