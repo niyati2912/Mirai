@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+/>
+
+<title>MIRAI — Economic Intelligence</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+<link
+href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+rel="stylesheet"
+/>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+    <div class="brand">
+    <div class="brand-mark">M</div>
+
+    <div>
+        <div class="brand-name">MIRAI</div>
+        <div class="brand-subtitle">
+        ECONOMIC INTELLIGENCE
+        </div>
+    </div>
+    </div>
+
+    <div class="sidebar-label">
+    MONITOR
+    </div>
+
+    <nav class="navigation">
+    <button
+        class="nav-item active"
+        data-page="dashboard"
+    >
+        <span class="nav-icon">◈</span>
+        Dashboard
+    </button>
+
+    <button
+        class="nav-item"
+        data-page="indicators"
+    >
+        <span class="nav-icon">◌</span>
+        Indicators
+    </button>
+
+    <button
+        class="nav-item"
+        data-page="forecast"
+    >
+        <span class="nav-icon">↗</span>
+        Forecast
+    </button>
+
+    <button
+        class="nav-item"
+        data-page="models"
+    >
+        <span class="nav-icon">◇</span>
+        Model Analysis
+    </button>
+
+    <button
+        class="nav-item"
+        data-page="methodology"
+    >
+        <span class="nav-icon">≡</span>
+        Methodology
+    </button>
+    </nav>
+
+    <div class="sidebar-bottom">
+    <div class="live-dot"></div>
+
+    <div>
+        <span class="live-title">
+        SYSTEM ONLINE
+        </span>
+
+        <span class="live-subtitle">
+        MIRAI ENGINE v1.0
+        </span>
+    </div>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+    <div>
+        <div class="topbar-kicker">
+        ECONOMIC INTELLIGENCE PLATFORM
+        </div>
+
+        <div class="topbar-title">
+        MIRAI / LIVE MONITOR
+        </div>
+    </div>
+
+    <div class="topbar-right">
+        <div class="api-status">
+        <span class="status-dot"></span>
+        DATA PIPELINE CONNECTED
+        </div>
+
+        <div class="date-display" id="currentDate">
+        —
+        </div>
+    </div>
+    </header>
+
+    <!-- CONTENT -->
+    <div id="appContent"></div>
+
+</main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
