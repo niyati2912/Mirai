@@ -1,135 +1,1046 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta
-name="viewport"
-content="width=device-width, initial-scale=1.0"
-/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>MIRAI — Economic Intelligence</title>
+    <title>MIRAI Economic Intelligence</title>
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-<link
-href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-rel="stylesheet"
-/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-<div class="app">
 
-<!-- SIDEBAR -->
-<aside class="sidebar">
-    <div class="brand">
-    <div class="brand-mark">M</div>
+<div class="app-shell">
 
-    <div>
-        <div class="brand-name">MIRAI</div>
-        <div class="brand-subtitle">
-        ECONOMIC INTELLIGENCE
-        </div>
-    </div>
-    </div>
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
 
-    <div class="sidebar-label">
-    MONITOR
-    </div>
+    <aside class="sidebar">
 
-    <nav class="navigation">
-    <button
-        class="nav-item active"
-        data-page="dashboard"
-    >
-        <span class="nav-icon">◈</span>
-        Dashboard
-    </button>
-
-    <button
-        class="nav-item"
-        data-page="indicators"
-    >
-        <span class="nav-icon">◌</span>
-        Indicators
-    </button>
-
-    <button
-        class="nav-item"
-        data-page="forecast"
-    >
-        <span class="nav-icon">↗</span>
-        Forecast
-    </button>
-
-    <button
-        class="nav-item"
-        data-page="models"
-    >
-        <span class="nav-icon">◇</span>
-        Model Analysis
-    </button>
-
-    <button
-        class="nav-item"
-        data-page="methodology"
-    >
-        <span class="nav-icon">≡</span>
-        Methodology
-    </button>
-    </nav>
-
-    <div class="sidebar-bottom">
-    <div class="live-dot"></div>
-
-    <div>
-        <span class="live-title">
-        SYSTEM ONLINE
-        </span>
-
-        <span class="live-subtitle">
-        MIRAI ENGINE v1.0
-        </span>
-    </div>
-    </div>
-</aside>
-
-<!-- MAIN -->
-<main class="main">
-
-    <!-- TOPBAR -->
-    <header class="topbar">
-    <div>
-        <div class="topbar-kicker">
-        ECONOMIC INTELLIGENCE PLATFORM
+        <div class="brand">
+            <span class="brand-name">MIRAI</span>
         </div>
 
-        <div class="topbar-title">
-        MIRAI / LIVE MONITOR
+        <div class="unit-profile">
+
+            <div class="unit-avatar">
+                <span>◉</span>
+            </div>
+
+            <div>
+                <div class="unit-name">Intelligence Unit</div>
+                <div class="unit-role">Global Macro Desk</div>
+            </div>
+
         </div>
+
+        <button class="new-analysis-btn">
+            <span>＋</span>
+            NEW ANALYSIS
+        </button>
+
+        <nav class="sidebar-nav">
+
+            <button class="sidebar-item active" data-page="dashboard">
+                <span class="nav-icon">⌁</span>
+                <span>Economic Outlook</span>
+            </button>
+
+            <button class="sidebar-item" data-page="forecast">
+                <span class="nav-icon">△</span>
+                <span>Market Risk</span>
+            </button>
+
+            <button class="sidebar-item" data-page="methodology">
+                <span class="nav-icon">⌂</span>
+                <span>Policy Monitor</span>
+            </button>
+
+            <button class="sidebar-item" data-page="models">
+                <span class="nav-icon">▣</span>
+                <span>Model Analysis</span>
+            </button>
+
+            <button class="sidebar-item">
+                <span class="nav-icon">▹</span>
+                <span>Terminal</span>
+            </button>
+
+        </nav>
+
+        <div class="sidebar-footer">
+
+            <button class="sidebar-item">
+                <span class="nav-icon">?</span>
+                <span>Support</span>
+            </button>
+
+            <button class="sidebar-item">
+                <span class="nav-icon">▤</span>
+                <span>Data Sources</span>
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================================================
+         MAIN APPLICATION
+    ====================================================== -->
+
+    <div class="main-app">
+
+        <!-- TOP NAV -->
+
+        <header class="topbar">
+
+            <nav class="top-nav">
+
+                <button class="top-nav-item active" data-page="dashboard">
+                    Dashboard
+                </button>
+
+                <button class="top-nav-item" data-page="forecast">
+                    Forecast
+                </button>
+
+                <button class="top-nav-item" data-page="models">
+                    Model Analysis
+                </button>
+
+                <button class="top-nav-item" data-page="methodology">
+                    Methodology
+                </button>
+
+            </nav>
+
+            <div class="top-actions">
+
+                <div class="search-box">
+                    <span>⌕</span>
+                    <input type="text" placeholder="Search...">
+                </div>
+
+                <button class="help-btn">HELP</button>
+                <button class="top-icon">♧</button>
+                <button class="top-icon">⚙</button>
+
+            </div>
+
+        </header>
+
+
+        <!-- =================================================
+             CONTENT
+        ================================================== -->
+
+        <main class="content">
+
+
+            <!-- =============================================
+                 DASHBOARD
+            ============================================== -->
+
+            <section class="page active-page" id="dashboard-page">
+
+                <div class="page-heading">
+
+                    <h1>MIRAI - Economic Stress Intelligence</h1>
+
+                    <p>
+                        A research platform combining macroeconomic, energy, and behavioral
+                        signals to analyze and forecast economic stress.
+                    </p>
+
+                </div>
+
+
+                <!-- KPI ROW -->
+
+                <div class="kpi-grid">
+
+                    <div class="kpi-card">
+
+                        <div class="kpi-label">Latest ESS</div>
+
+                        <div class="kpi-value orange">
+                            54.3
+                            <span class="status-tag">Moderate</span>
+                        </div>
+
+                    </div>
+
+
+                    <div class="kpi-card">
+
+                        <div class="kpi-label">3-Month Forecast</div>
+
+                        <div class="kpi-empty">
+                            No forecast data
+                        </div>
+
+                    </div>
+
+
+                    <div class="kpi-card">
+
+                        <div class="kpi-label">Latest Change</div>
+
+                        <div class="kpi-value">
+                            +1.1 <span class="trend">↗</span>
+                        </div>
+
+                    </div>
+
+
+                    <div class="kpi-card">
+
+                        <div class="kpi-label">Model RMSE</div>
+
+                        <div class="kpi-value blue">
+                            3.81
+                        </div>
+
+                    </div>
+
+
+                    <div class="kpi-card">
+
+                        <div class="kpi-label">Latest Obs</div>
+
+                        <div class="kpi-date">
+                            May 2026
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="dashboard-layout">
+
+
+                    <!-- ESS CHART -->
+
+                    <div class="panel ess-panel">
+
+                        <div class="panel-top">
+
+                            <div class="panel-title">
+                                Economic Stress Score Over Time
+                            </div>
+
+                            <div class="period-buttons">
+
+                                <button>1Y</button>
+
+                                <button class="active-period">
+                                    5Y
+                                </button>
+
+                                <button>MAX</button>
+
+                            </div>
+
+                        </div>
+
+                        <div class="chart-area">
+                            <canvas id="essChart"></canvas>
+                        </div>
+
+                    </div>
+
+
+                    <!-- RIGHT SIDE -->
+
+                    <div class="dashboard-side">
+
+
+                        <div class="panel signal-panel">
+
+                            <div class="panel-title">
+                                Current Signal Breakdown
+                            </div>
+
+
+                            <div class="signal">
+
+                                <div class="signal-label">
+                                    <span>Macroeconomic</span>
+                                    <span class="red-text">78.2</span>
+                                </div>
+
+                                <div class="signal-track">
+                                    <div class="signal-fill macro"></div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="signal">
+
+                                <div class="signal-label">
+                                    <span>Energy</span>
+                                    <span class="orange-text">51.4</span>
+                                </div>
+
+                                <div class="signal-track">
+                                    <div class="signal-fill energy"></div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="signal">
+
+                                <div class="signal-label">
+                                    <span>Behavioral</span>
+                                    <span class="blue-text">32.8</span>
+                                </div>
+
+                                <div class="signal-track">
+                                    <div class="signal-fill behavioral"></div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="panel summary-panel">
+
+                            <div class="panel-title">
+                                Recent Signal Summary
+                            </div>
+
+                            <p>
+                                Overall economic stress has seen a slight uptick
+                                (<strong>+1.1</strong>) driven primarily by tightening
+                                in the <span class="red-text">Macro</span> category,
+                                which currently exhibits the strongest stress signals.
+                                <span class="orange-text">Energy</span> remains elevated
+                                but stable in the moderate zone.
+                                <span class="blue-text">Behavioral</span> indicators
+                                show the lowest stress, suggesting consumer sentiment
+                                has not yet fully internalized macro headwinds.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =============================================
+                 FORECAST
+            ============================================== -->
+
+            <section class="page" id="forecast-page">
+
+                <div class="page-heading">
+
+                    <h1>Actual vs Predicted Economic Stress</h1>
+
+                    <p>
+                        Predictions are evaluated on a chronological holdout period.
+                        The target is ESS three months into the future.
+                    </p>
+
+                </div>
+
+
+                <div class="panel forecast-panel">
+
+                    <div class="forecast-header">
+
+                        <div class="panel-title">
+                            ESS Time-Series Forecast
+                        </div>
+
+                        <div class="chart-legend">
+
+                            <span>
+                                <i class="legend-line actual"></i>
+                                Actual ESS
+                            </span>
+
+                            <span>
+                                <i class="legend-line conventional"></i>
+                                Conventional
+                            </span>
+
+                            <span>
+                                <i class="legend-line behavioral-legend"></i>
+                                Conv + Behavioral
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="forecast-chart-area">
+                        <canvas id="forecastChart"></canvas>
+                    </div>
+
+                </div>
+
+
+                <div class="forecast-bottom">
+
+
+                    <!-- RMSE TABLE -->
+
+                    <div class="panel metrics-panel">
+
+                        <div class="panel-title">
+                            Holdout Error Metrics (RMSE)
+                        </div>
+
+                        <table class="metric-table">
+
+                            <thead>
+
+                                <tr>
+                                    <th>Model</th>
+                                    <th>3M Fwd</th>
+                                    <th>Δ vs Baseline</th>
+                                </tr>
+
+                            </thead>
+
+                            <tbody>
+
+                                <tr>
+                                    <td>Baseline<br>(ARIMA)</td>
+                                    <td>0.842</td>
+                                    <td>—</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="model-blue">
+                                        Conventional
+                                    </td>
+
+                                    <td>0.615</td>
+
+                                    <td class="blue-text">
+                                        -27.0%
+                                    </td>
+                                </tr>
+
+                                <tr>
+
+                                    <td class="model-orange">
+                                        Conv + Beh
+                                    </td>
+
+                                    <td>0.428</td>
+
+                                    <td class="blue-text">
+                                        -49.2%
+                                    </td>
+
+                                </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+
+                    <!-- PERFORMANCE NOTES -->
+
+                    <div class="panel notes-panel">
+
+                        <div class="panel-title">
+                            Model Performance Notes
+                        </div>
+
+                        <p>
+                            The inclusion of behavioral indicators
+                            (sentiment, momentum, institutional panic indices)
+                            significantly reduces prediction lag during abrupt stress events.
+                        </p>
+
+                        <p>
+                            The conventional model smooths over these shocks,
+                            exhibiting higher RMSE in the holdout period.
+                        </p>
+
+
+                        <div class="lag-row">
+
+                            <div class="lag-card blue-border">
+
+                                <span>Peak Prediction Lag</span>
+
+                                <strong>
+                                    Conv: 2.1 mo
+                                </strong>
+
+                            </div>
+
+
+                            <div class="lag-card orange-border">
+
+                                <span>Peak Prediction Lag</span>
+
+                                <strong>
+                                    Conv+Beh: 0.4 mo
+                                </strong>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =============================================
+                 MODEL ANALYSIS
+            ============================================== -->
+
+            <section class="page" id="models-page">
+
+                <div class="page-heading model-heading">
+
+                    <h1>Model Experiment Results</h1>
+
+                    <p>
+                        Chronological holdout evaluation of three forecasting approaches.
+                    </p>
+
+                </div>
+
+
+                <div class="model-top-row">
+
+
+                    <!-- PERFORMANCE TABLE -->
+
+                    <div class="panel performance-panel">
+
+                        <div class="panel-title">
+                            Performance Metrics
+                        </div>
+
+                        <table class="performance-table">
+
+                            <thead>
+
+                                <tr>
+
+                                    <th>Model</th>
+                                    <th>MAE</th>
+                                    <th>RMSE</th>
+                                    <th>R²</th>
+                                    <th>Features</th>
+
+                                </tr>
+
+                            </thead>
+
+                            <tbody>
+
+                                <tr>
+
+                                    <td>Persistence Baseline</td>
+
+                                    <td class="metric-red">4.338</td>
+
+                                    <td class="metric-red">5.451</td>
+
+                                    <td class="metric-red">-1.303</td>
+
+                                    <td>1</td>
+
+                                </tr>
+
+
+                                <tr>
+
+                                    <td>
+                                        Conventional Model
+                                        <span class="blue-dot"></span>
+                                    </td>
+
+                                    <td class="metric-blue">3.095</td>
+
+                                    <td class="metric-blue">3.811</td>
+
+                                    <td class="metric-blue">-0.126</td>
+
+                                    <td>48</td>
+
+                                </tr>
+
+
+                                <tr>
+
+                                    <td>
+                                        Conventional + Behavioral
+                                        <span class="orange-dot"></span>
+                                    </td>
+
+                                    <td class="metric-blue">3.095</td>
+
+                                    <td class="metric-blue">3.811</td>
+
+                                    <td class="metric-blue">-0.126</td>
+
+                                    <td>48</td>
+
+                                </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+
+                    <!-- CONCLUSION -->
+
+                    <div class="panel conclusion-panel">
+
+                        <div class="panel-title">
+                            Conclusion
+                        </div>
+
+                        <p>
+                            <strong>
+                                Both Random Forest experiments improved
+                                the model MAE and RMSE compared with the
+                                persistence baseline.
+                            </strong>
+                        </p>
+
+                        <p>
+                            In the current dataset and feature configuration,
+                            adding behavioral signals did not improve holdout
+                            performance beyond the conventional model.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- ERROR CHART -->
+
+                <div class="panel comparison-panel">
+
+                    <div class="panel-title">
+                        Error Metric Comparison (MAE vs RMSE)
+                    </div>
+
+                    <div class="comparison-chart-area">
+                        <canvas id="modelChart"></canvas>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =============================================
+                 METHODOLOGY
+            ============================================== -->
+
+            <section class="page" id="methodology-page">
+
+                <div class="page-heading">
+
+                    <h1>Methodological Architecture</h1>
+
+                    <p>
+                        Comprehensive overview of the MIRAI analytical pipeline,
+                        detailing data ingestion, processing, and the Random Forest
+                        Regression modeling approach for economic stress forecasting.
+                    </p>
+
+                </div>
+
+
+                <!-- PIPELINE -->
+
+                <div class="pipeline-section">
+
+                    <div class="section-small-title">
+                        Visual Pipeline
+                    </div>
+
+                    <div class="pipeline">
+
+
+                        <div class="pipeline-node">
+                            <span class="pipeline-icon">▣</span>
+                            <span>Data Sources</span>
+                        </div>
+
+                        <div class="pipeline-arrow">→</div>
+
+
+                        <div class="pipeline-node">
+                            <span class="pipeline-icon">⇅</span>
+                            <span>ETL Process</span>
+                        </div>
+
+                        <div class="pipeline-arrow">→</div>
+
+
+                        <div class="pipeline-node">
+                            <span class="pipeline-icon">⚙</span>
+                            <span>Feature Engineering</span>
+                        </div>
+
+                        <div class="pipeline-arrow">→</div>
+
+
+                        <div class="pipeline-node">
+                            <span class="pipeline-icon">▥</span>
+                            <span>ESS Construction</span>
+                        </div>
+
+                        <div class="pipeline-arrow">→</div>
+
+
+                        <div class="pipeline-node forecast-node">
+                            <span class="pipeline-icon">◎</span>
+                            <span>3-Month Forecast Target</span>
+                        </div>
+
+                    </div>
+
+
+                    <div class="pipeline-row-two">
+
+                        <div class="pipeline-arrow">→</div>
+
+                        <div class="pipeline-node">
+
+                            <span class="pipeline-icon orange-text">
+                                ⚠
+                            </span>
+
+                            <span>Random Forest Regression</span>
+
+                        </div>
+
+
+                        <div class="pipeline-arrow">→</div>
+
+
+                        <div class="pipeline-node">
+
+                            <span class="pipeline-icon">
+                                ↻
+                            </span>
+
+                            <span>Chronological Evaluation</span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="methodology-grid">
+
+
+                    <!-- LEFT -->
+
+                    <div class="method-left">
+
+
+                        <div class="panel data-panel">
+
+                            <div class="panel-title">
+                                Data Ingestion
+                            </div>
+
+
+                            <div class="data-source">
+
+                                <span class="source-icon">
+                                    ♜
+                                </span>
+
+                                <div>
+
+                                    <strong>
+                                        FRED (Federal Reserve Economic Data)
+                                    </strong>
+
+                                    <p>
+                                        Core macroeconomic indicators,
+                                        interest rates, employment metrics.
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="data-source">
+
+                                <span class="source-icon">
+                                    ▣
+                                </span>
+
+                                <div>
+
+                                    <strong>
+                                        EIA (Energy Information Administration)
+                                    </strong>
+
+                                    <p>
+                                        Energy commodity and
+                                        production imbalances.
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="data-source">
+
+                                <span class="source-icon">
+                                    ⌁
+                                </span>
+
+                                <div>
+
+                                    <strong>
+                                        Behavioral & Search Signals
+                                    </strong>
+
+                                    <p>
+                                        Sentiment analysis and search
+                                        volume trends indicating market anxiety.
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="panel weight-panel">
+
+                            <div class="panel-title">
+                                ESS Indicator Weights
+                            </div>
+
+
+                            <div class="weight-item">
+
+                                <div class="weight-label">
+                                    <span>Macroeconomic</span>
+                                    <span>45%</span>
+                                </div>
+
+                                <div class="weight-track">
+                                    <div class="weight-fill macro-weight"></div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="weight-item">
+
+                                <div class="weight-label">
+                                    <span>Behavioral</span>
+                                    <span>35%</span>
+                                </div>
+
+                                <div class="weight-track">
+                                    <div class="weight-fill behavioral-weight"></div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="weight-item">
+
+                                <div class="weight-label">
+                                    <span>Energy</span>
+                                    <span>20%</span>
+                                </div>
+
+                                <div class="weight-track">
+                                    <div class="weight-fill energy-weight"></div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- RIGHT -->
+
+                    <div class="method-right">
+
+
+                        <div class="panel feature-panel">
+
+                            <div class="panel-title">
+                                Feature Engineering & Processing
+                            </div>
+
+
+                            <div class="feature-grid">
+
+                                <div class="feature-card">
+
+                                    <strong>Δx & Lag(1)</strong>
+
+                                    <p>
+                                        Percentage change and first-order
+                                        lags computed to capture momentum
+                                        and immediate trajectory.
+                                    </p>
+
+                                </div>
+
+
+                                <div class="feature-card">
+
+                                    <strong>μ(3m, 6m)</strong>
+
+                                    <p>
+                                        Rolling means over 3-month and
+                                        6-month windows to smooth noise
+                                        and identify medium-term trends.
+                                    </p>
+
+                                </div>
+
+
+                                <div class="feature-card">
+
+                                    <strong>σ(Rolling)</strong>
+
+                                    <p>
+                                        Rolling volatility estimation to
+                                        quantify localized market instability.
+                                    </p>
+
+                                </div>
+
+
+                                <div class="feature-card">
+
+                                    <strong>Z-Score Normalization</strong>
+
+                                    <p>
+                                        Indicators normalized via z-scores.
+                                        Higher = <span class="red-text">
+                                        Stress.</span>
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="panel evaluation-panel">
+
+                            <h2>
+                                <span class="orange-text">♧</span>
+                                Evaluation Protocol
+                            </h2>
+
+                            <p>
+                                Model validation strictly adheres to a chronological
+                                train/test separation to prevent data leakage and
+                                simulate realistic forecasting accuracy.
+                            </p>
+
+
+                            <div class="protocol-code">
+
+                                <span>
+                                    Train:
+                                    <strong>t₀ → tₙ</strong>
+                                </span>
+
+                                <span>|</span>
+
+                                <span>
+                                    Test:
+                                    <strong class="orange-text">
+                                        tₙ₊₁ → tₘ
+                                    </strong>
+                                </span>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- FOOTER -->
+
+            <footer class="app-footer">
+
+                <div>
+                    <strong>MIRAI</strong>
+                    © 2024 MIRAI Economic Intelligence.
+                    Data sources: FRED, EIA, World Bank.
+                </div>
+
+                <div class="footer-links">
+
+                    <a href="#">Methodology</a>
+                    <a href="#">API Docs</a>
+                    <a href="#">Privacy</a>
+
+                </div>
+
+            </footer>
+
+        </main>
+
     </div>
 
-    <div class="topbar-right">
-        <div class="api-status">
-        <span class="status-dot"></span>
-        DATA PIPELINE CONNECTED
-        </div>
-
-        <div class="date-display" id="currentDate">
-        —
-        </div>
-    </div>
-    </header>
-
-    <!-- CONTENT -->
-    <div id="appContent"></div>
-
-</main>
 </div>
 
+
 <script src="app.js"></script>
+
 </body>
 </html>
